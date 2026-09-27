@@ -1,0 +1,12 @@
+{
+  "name": "novel-editor",
+  "version": "0.1.0",
+  "description": "縦書き二段組プレビュー付き小説エディタ",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^32.0.0"
+  }
+}

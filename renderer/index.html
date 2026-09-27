@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>小説エディタ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <main id="panes">
+      <section id="editor-pane">
+        <textarea id="editor" spellcheck="false" placeholder="ここに本文を入力..."></textarea>
+      </section>
+      <section id="preview-pane">
+        <div id="preview-toolbar">
+          <label>フォント
+            <select id="font-select">
+              <option value='"Yu Mincho","游明朝","MS Mincho",serif'>游明朝</option>
+              <option value='"MS Mincho","ＭＳ 明朝",serif'>ＭＳ 明朝</option>
+              <option value='"Hiragino Mincho ProN","Hiragino Mincho Pro",serif'>ヒラギノ明朝</option>
+              <option value='"Yu Gothic","游ゴシック","Yu Gothic UI",sans-serif'>游ゴシック</option>
+              <option value='"MS Gothic","ＭＳ ゴシック",sans-serif'>ＭＳ ゴシック</option>
+              <option value='"Meiryo","メイリオ",sans-serif'>メイリオ</option>
+              <option value='"BIZ UDPMincho",serif'>BIZ UD明朝</option>
+              <option value='"BIZ UDPGothic",sans-serif'>BIZ UDゴシック</option>
+            </select>
+          </label>
+          <label>文字色 <input type="color" id="color-input" value="#1a1a1a" /></label>
+          <span class="sep">|</span>
+          <label>字数<input type="number" id="chars-input" min="1" max="80" value="31" /></label>
+          <label>行数<input type="number" id="lines-input" min="1" max="80" value="27" /></label>
+          <label>段数<input type="number" id="cols-input" min="1" max="4" value="2" /></label>
+          <span class="sep">|</span>
+          <label>倍率 <span id="zoom-value">100%</span></label>
+        </div>
+        <div id="preview-scroll">
+          <div id="preview"></div>
+        </div>
+        <input type="range" id="zoom-slider" min="30" max="300" step="5" value="100" orient="vertical" />
+      </section>
+    </main>
+    <footer id="status">
+      <span id="status-file">無題</span>
+      <span class="sep">|</span>
+      <span>文字数: <b id="char-count">0</b></span>
+      <span class="sep">|</span>
+      <span>ページ (<b id="chars-per-page-label">1674</b>字/頁): <b id="page-count">0</b></span>
+      <span class="sep">|</span>
+      <span>原稿用紙換算: <b id="genkou-count">0</b></span>
+    </footer>
+  </div>
+  <div id="drive-modal" class="hidden">
+    <div class="drive-dialog">
+      <h2 id="drive-modal-title"></h2>
+      <ul id="drive-file-list"></ul>
+      <input type="text" id="drive-name-input" />
+      <div class="drive-buttons">
+        <button id="drive-ok">OK</button>
+        <button id="drive-cancel">キャンセル</button>
+      </div>
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
