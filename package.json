@@ -16,7 +16,7 @@
     "release": "electron-builder --win --publish always"
   },
   "devDependencies": {
-    "electron": "^32.0.0",
+    "electron": "^44.4.5",
     "electron-builder": "^26.0.0"
   },
   "dependencies": {
@@ -39,8 +39,18 @@
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "build/icon.png"
     },
