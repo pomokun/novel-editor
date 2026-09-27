@@ -19,3 +19,13 @@ code {
   padding: 1px 4px;
   word-break: break-all;
 }
+.download {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #c8553d;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 4px;
+}
+.download:hover { background: #a8432e; }
+.note { font-size: 0.9em; color: #555; }

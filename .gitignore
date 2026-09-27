@@ -1,3 +1,6 @@
 node_modules/
 google-credentials.json
 google-token.bin
+dist/
+oauth-client.json
+.claude/settings.local.json

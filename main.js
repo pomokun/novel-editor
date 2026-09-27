@@ -1,7 +1,13 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
 const drive = require('./drive');
+const updater = require('./updater');
+
+const HOMEPAGE_URL = 'https://pomokun.github.io/novel-editor/';
+
+// 配布版は productName（日本語名）で userData が作られるため、開発版と同じ %APPDATA%\novel-editor に固定する
+app.setPath('userData', path.join(app.getPath('appData'), 'novel-editor'));
 
 let mainWindow = null;
 
@@ -83,9 +89,21 @@ function createWindow() {
             { label: '四六判 縦 (127 × 188 mm)', type: 'radio',            click: () => sendWith('menu:paper-size', 'SHIROKU') },
           ],
         },
+        // 開発者向けの項目はパッケージ版では出さない
+        ...(app.isPackaged ? [] : [
+          { type: 'separator' },
+          { role: 'reload', label: '再読み込み' },
+          { role: 'toggleDevTools', label: '開発者ツール' },
+        ]),
+      ],
+    },
+    {
+      label: 'ヘルプ',
+      submenu: [
+        { label: '更新を確認...', click: () => updater.checkNow() },
+        { label: 'Webサイト', click: () => shell.openExternal(HOMEPAGE_URL) },
         { type: 'separator' },
-        { role: 'reload', label: '再読み込み' },
-        { role: 'toggleDevTools', label: '開発者ツール' },
+        { label: 'バージョン情報', click: () => showAbout() },
       ],
     },
   ]);
@@ -103,6 +121,15 @@ function createWindow() {
         mainWindow.close();
       }
     }
+  });
+}
+
+function showAbout() {
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'バージョン情報',
+    message: `小説エディタ ${app.getVersion()}`,
+    detail: HOMEPAGE_URL,
   });
 }
 
@@ -176,7 +203,7 @@ async function ensureDriveCredentials() {
     defaultId: 0,
     cancelId: 1,
     message: 'Googleドライブ連携の初期設定',
-    detail: 'Google Cloud Console で作成した OAuth クライアントID（デスクトップアプリ）の JSON ファイルを選択してください。手順は README.md を参照してください。',
+    detail: 'この開発版にはクライアントIDが同梱されていません。Google Cloud Console で作成した OAuth クライアントID（デスクトップアプリ）の JSON ファイルを選択してください。手順は README.md を参照してください。',
   });
   if (res.response !== 0) return false;
   const pick = await dialog.showOpenDialog(mainWindow, {
@@ -260,7 +287,21 @@ ipcMain.handle('drive:confirm-reload', async (_e, { dirty }) => {
   return res.response === 0;
 });
 
-app.whenReady().then(createWindow);
+// 多重起動を防ぎ、2つ目の起動時は既存のウィンドウを前面に出す
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+
+  app.whenReady().then(() => {
+    createWindow();
+    updater.init(() => mainWindow);
+  });
+}
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

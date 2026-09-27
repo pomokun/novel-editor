@@ -26,20 +26,32 @@ let accessToken = null;
 let accessTokenExpiry = 0;
 let folderId = null;
 
+// 配布版に同梱するクライアントID（リポジトリには含めず、ビルド時に置く）
+const bundledCredentialsPath = () => path.join(__dirname, 'oauth-client.json');
+
 // ---- 認証情報 ----
-async function loadCredentials() {
-  if (credentials) return credentials;
-  let raw;
-  try {
-    raw = await fs.readFile(credentialsPath(), 'utf8');
-  } catch {
-    return null;
-  }
+// Google からダウンロードしたクライアントIDのJSONを解釈する
+function parseCredentials(raw, fileName) {
   const json = JSON.parse(raw);
   const c = json.installed || json.web || json;
-  if (!c.client_id) throw new Error('google-credentials.json に client_id がありません。');
-  credentials = { client_id: c.client_id, client_secret: c.client_secret };
-  return credentials;
+  if (!c.client_id) throw new Error(`${fileName} に client_id がありません。`);
+  return { client_id: c.client_id, client_secret: c.client_secret };
+}
+
+// userData の google-credentials.json（利用者が自分で設定したもの）を優先し、なければ同梱版を使う
+async function loadCredentials() {
+  if (credentials) return credentials;
+  for (const file of [credentialsPath(), bundledCredentialsPath()]) {
+    let raw;
+    try {
+      raw = await fs.readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    credentials = parseCredentials(raw, path.basename(file));
+    return credentials;
+  }
+  return null;
 }
 
 async function hasCredentials() {
@@ -49,9 +61,11 @@ async function hasCredentials() {
 // ダウンロードしたクライアントIDのJSONを userData にコピーする
 async function importCredentials(srcPath) {
   const raw = await fs.readFile(srcPath, 'utf8');
-  const json = JSON.parse(raw);
-  const c = json.installed || json.web || json;
-  if (!c.client_id) throw new Error('OAuth クライアントIDのJSONではないようです（client_id がありません）。');
+  try {
+    parseCredentials(raw, path.basename(srcPath));
+  } catch {
+    throw new Error('OAuth クライアントIDのJSONではないようです（client_id がありません）。');
+  }
   await fs.mkdir(app.getPath('userData'), { recursive: true });
   await fs.writeFile(credentialsPath(), raw, 'utf8');
   credentials = null;

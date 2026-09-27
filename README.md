@@ -2,12 +2,16 @@
 
 縦書き二段組（1段 31字 × 27行 / 1ページ 1,674字）のプレビュー付きテキストエディタ。
 
-## セットアップ
+## ダウンロード（Windows）
 
-```
-npm install
-npm start
-```
+[Releases](https://github.com/pomokun/novel-editor/releases/latest) から入手できます。
+
+- `novel-editor-setup-x.y.z.exe` … インストーラー（管理者権限不要）。スタートメニューとデスクトップにショートカットを作成します
+- `novel-editor-portable-x.y.z.exe` … インストール不要版
+
+初回起動時に「WindowsによってPCが保護されました」と表示された場合は「詳細情報」→「実行」を押してください（コード署名をしていないため表示されます）。
+
+インストーラー版は起動時に新しいバージョンを確認し、自動でダウンロードして更新します（「ヘルプ」→「更新を確認」でも確認できます）。
 
 ## 機能
 
@@ -38,7 +42,27 @@ npm start
 - 保存時にドライブ側が他の場所で更新されていれば「上書き / ドライブ版を読み込む / キャンセル」を選べます
 - アクセス範囲は `drive.file`（このアプリが作成したファイルのみ）です。ドライブ上の既存ファイルは見えません
 
-### 初期設定（初回のみ）
+配布版は「ドライブ」→「ログイン」でGoogleアカウントにログインするだけで使えます。
+
+ログイン情報は `%APPDATA%\novel-editor\google-token.bin` に暗号化して保存されます。「ドライブ」→「ログアウト」で削除できます。
+
+## 開発者向け
+
+### ソースから動かす
+
+```
+npm install
+npm start
+```
+
+### Googleドライブ連携の初期設定
+
+配布版には作者の OAuth クライアントID（`oauth-client.json`）が同梱されますが、リポジトリには含まれていません。ソースから動かす場合は次のどちらかを行います。
+
+- 自分で作成したクライアントIDのJSONを、リポジトリ直下に `oauth-client.json` として置く
+- 何も置かずに起動し、「ドライブ」メニューを初めて使ったときにJSONを選択する（`%APPDATA%\novel-editor\google-credentials.json` にコピーされ、同梱版より優先されます）
+
+クライアントIDの作成手順:
 
 1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成
 2. 「APIとサービス」→「ライブラリ」で **Google Drive API** を有効化
@@ -46,8 +70,18 @@ npm start
    - 「テスト」状態のままだとログインが7日で切れるため、「アプリを公開」で本番にしておく（`drive.file` は審査不要）
    - 公開前にログインする場合は自分のアカウントをテストユーザーに追加
 4. 「認証情報」→「認証情報を作成」→「OAuth クライアント ID」→ 種類 **デスクトップアプリ** → JSON をダウンロード
-5. エディタで「ドライブ」メニューを初めて使うとJSONの選択を求められるので、ダウンロードしたファイルを選ぶ
-   （`%APPDATA%\novel-editor\google-credentials.json` にコピーされます）
-6. ブラウザが開くのでGoogleアカウントでログイン・許可
 
-ログイン情報は `%APPDATA%\novel-editor\google-token.bin` に暗号化して保存されます。「ドライブ」→「ログアウト」で削除できます。
+### ビルドとリリース
+
+```
+npm run dist        # dist/ にインストーラーとポータブル版を作成（ローカル確認用）
+```
+
+リリースは GitHub Actions（`.github/workflows/release.yml`）で行います。事前にリポジトリの Secret `GOOGLE_OAUTH_CLIENT_JSON` にクライアントIDのJSONの中身を登録しておきます。
+
+```
+npm version patch   # バージョンを上げてタグ v0.1.1 等を作成
+git push --follow-tags
+```
+
+タグの push でビルドされ、Releases に下書きが作られます。下書きを「公開」すると、インストール済みのアプリが自動更新で取得します。

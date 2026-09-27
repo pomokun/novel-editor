@@ -1,0 +1,37 @@
+# v* タグの push で Windows 版をビルドし、GitHub Releases に下書きとしてアップロードする。
+# 下書きを「公開」すると、インストール済みのアプリが自動更新で取得する。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # ドライブ連携用の OAuth クライアント（デスクトップアプリ）をアプリに同梱する
+      - name: Write OAuth client
+        shell: pwsh
+        env:
+          OAUTH_CLIENT_JSON: ${{ secrets.GOOGLE_OAUTH_CLIENT_JSON }}
+        run: |
+          if (-not $env:OAUTH_CLIENT_JSON) { throw 'Secret GOOGLE_OAUTH_CLIENT_JSON が未設定です。' }
+          Set-Content -Path oauth-client.json -Value $env:OAUTH_CLIENT_JSON -NoNewline -Encoding utf8NoBOM
+
+      - run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,11 +2,64 @@
   "name": "novel-editor",
   "version": "0.1.0",
   "description": "縦書き二段組プレビュー付き小説エディタ",
+  "author": "pomokun",
+  "license": "MIT",
+  "homepage": "https://pomokun.github.io/novel-editor/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pomokun/novel-editor.git"
+  },
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "release": "electron-builder --win --publish always"
   },
   "devDependencies": {
-    "electron": "^32.0.0"
+    "electron": "^32.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "build": {
+    "appId": "io.github.pomokun.novel-editor",
+    "productName": "小説エディタ",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "drive.js",
+      "updater.js",
+      "oauth-client.json",
+      "renderer/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "小説エディタ",
+      "artifactName": "novel-editor-setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "novel-editor-portable-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "pomokun",
+      "repo": "novel-editor"
+    }
   }
 }
