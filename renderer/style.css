@@ -71,11 +71,11 @@ body {
 .show-spaces #editor-backdrop .ws-half {
   background: radial-gradient(circle, rgba(240, 170, 90, 0.9) 1.5px, transparent 2px) center / 100% 100% no-repeat;
 }
-.show-spaces .preview-column .ws-full {
+.show-spaces #preview .ws-full {
   outline: 1px dashed rgba(60, 110, 190, 0.45);
   outline-offset: -2px;
 }
-.show-spaces .preview-column .ws-half {
+.show-spaces #preview .ws-half {
   background: radial-gradient(circle, rgba(210, 120, 40, 0.8) 1.5px, transparent 2px) center / 100% 100% no-repeat;
 }
 
@@ -265,3 +265,43 @@ body {
 }
 .drive-buttons button:disabled { opacity: 0.5; cursor: default; }
 #drive-ok { background: #3d5a80; border-color: #4f73a3; }
+
+/* ---- 原稿用紙表示 ---- */
+/* --cell (1マスの大きさ) と --rows (1行の字数) はJSで設定 */
+.genkou-page {
+  --genkou-line: rgba(196, 72, 52, 0.65);
+  width: fit-content;
+}
+.genkou-grid {
+  display: flex;
+  flex-direction: row-reverse; /* 1行目を右端に */
+  border: 1.5px solid var(--genkou-line);
+}
+.genkou-line {
+  writing-mode: vertical-rl;
+  white-space: pre;
+  width: var(--cell);
+  height: calc(var(--cell) * var(--rows));
+  border-left: 1px solid var(--genkou-line);
+  border-right: 1px solid var(--genkou-line);
+  /* 各マスの下辺の罫線 */
+  background: repeating-linear-gradient(to bottom,
+    transparent 0, transparent calc(var(--cell) - 1px),
+    var(--genkou-line) calc(var(--cell) - 1px), var(--genkou-line) var(--cell));
+  font-size: calc(var(--cell) * 0.72);
+  line-height: var(--cell);
+}
+.genkou-cell {
+  display: inline-block;
+  inline-size: var(--cell);
+  block-size: var(--cell);
+  text-align: center;
+  vertical-align: top;
+}
+/* 半角英数字は横倒しにせず正立させる */
+.genkou-upright { text-orientation: upright; }
+.genkou-center {
+  border-left: 1px solid var(--genkou-line);
+  border-right: 1px solid var(--genkou-line);
+}
+#preview-toolbar input[type="number"]:disabled { opacity: 0.4; }

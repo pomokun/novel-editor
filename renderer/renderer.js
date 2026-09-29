@@ -39,12 +39,14 @@ const state = {
   charsPerColumn: 31,
   linesPerColumn: 27,
   columns: 2,
+  genkou: false,
   autoIndent: true,
   indentChar: '　',
 };
 
 function charsPerPage() {
-  return state.charsPerColumn * state.linesPerColumn * state.columns;
+  // 原稿用紙表示は1枚1段
+  return state.charsPerColumn * state.linesPerColumn * (state.genkou ? 1 : state.columns);
 }
 
 const fontSelect = document.getElementById('font-select');
@@ -56,6 +58,7 @@ const charsInput = document.getElementById('chars-input');
 const linesInput = document.getElementById('lines-input');
 const colsInput = document.getElementById('cols-input');
 const charsPerPageLabel = document.getElementById('chars-per-page-label');
+const genkouInput = document.getElementById('genkou-input');
 
 function updateTitle() {
   const name = state.source === 'drive'
@@ -197,6 +200,27 @@ function computePaperStyle() {
 }
 
 function renderPreview() {
+  const frag = state.genkou ? buildGenkouPages() : buildPaperPages();
+
+  const wasPreserving = preserveScroll;
+  preserveScroll = false;
+  const prevRightOffset =
+    previewScroll.scrollWidth - previewScroll.clientWidth - previewScroll.scrollLeft;
+
+  preview.replaceChildren(frag);
+
+  requestAnimationFrame(() => {
+    if (wasPreserving) {
+      const maxScroll = previewScroll.scrollWidth - previewScroll.clientWidth;
+      previewScroll.scrollLeft = Math.max(0, maxScroll - prevRightOffset);
+    } else {
+      // 縦書きは右→左に読むので、初期表示は右端(1段目)から
+      previewScroll.scrollLeft = previewScroll.scrollWidth;
+    }
+  });
+}
+
+function buildPaperPages() {
   const { paper, fontMm, displayScale } = computePaperStyle();
   const s = displayScale;
   const colH = state.charsPerColumn * fontMm * s;             // 1段の高さ (縦書きの縦方向)
@@ -225,7 +249,7 @@ function renderPreview() {
 
     for (let c = 0; c < state.columns; c++) {
       const colDiv = document.createElement('div');
-      colDiv.className = 'preview-column';
+      colDiv.className = 'preview-column preview-text';
       colDiv.style.position = 'absolute';
       colDiv.style.top = `${c * (colH + gap)}mm`;
       colDiv.style.right = '0';
@@ -248,23 +272,93 @@ function renderPreview() {
     wrap.appendChild(num);
     frag.appendChild(wrap);
   });
+  return frag;
+}
 
-  const wasPreserving = preserveScroll;
-  preserveScroll = false;
-  const prevRightOffset =
-    previewScroll.scrollWidth - previewScroll.clientWidth - previewScroll.scrollLeft;
+// ---- 原稿用紙表示 ----
+// 字数×行数マスの縦書き原稿用紙（段数は使わない）。1文字を1マスに置く
+const GENKOU = { cellMm: 8, gapMm: 2, centerMm: 12, marginMm: 12 };
+// 行頭に来る句読点・閉じ括弧は、前の行の最後のマスの下にぶら下げる
+const HANGING_CHARS = '、。，．,.）)」』】〉》〕］｝〟”’';
 
-  preview.replaceChildren(frag);
-
-  requestAnimationFrame(() => {
-    if (wasPreserving) {
-      const maxScroll = previewScroll.scrollWidth - previewScroll.clientWidth;
-      previewScroll.scrollLeft = Math.max(0, maxScroll - prevRightOffset);
+function splitGenkouLines(text) {
+  const perLine = state.charsPerColumn;
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = [];
+  let cur = [];
+  for (const ch of normalized) {
+    if (ch === '\n') {
+      lines.push(cur);
+      cur = [];
+    } else if (cur.length < perLine) {
+      cur.push(ch);
+    } else if (cur.length === perLine && HANGING_CHARS.includes(ch)) {
+      cur.push(ch);
     } else {
-      // 縦書きは右→左に読むので、初期表示は右端(1段目)から
-      previewScroll.scrollLeft = previewScroll.scrollWidth;
+      lines.push(cur);
+      cur = [ch];
     }
-  });
+  }
+  lines.push(cur);
+  return lines;
+}
+
+function buildGenkouLine(chars) {
+  const line = document.createElement('div');
+  line.className = 'genkou-line';
+  for (const ch of chars) {
+    const cell = document.createElement('span');
+    cell.className = 'genkou-cell';
+    if (ch === ' ' || ch === '　') cell.classList.add(spaceClass(ch));
+    else if (/^[\x21-\x7e]$/.test(ch)) cell.classList.add('genkou-upright');
+    cell.textContent = ch;
+    line.appendChild(cell);
+  }
+  return line;
+}
+
+function buildGenkouPages() {
+  const lines = splitGenkouLines(editor.value);
+  const perLine = state.charsPerColumn;
+  const perPage = state.linesPerColumn;
+  const frag = document.createDocumentFragment();
+  for (let p = 0; p * perPage < lines.length; p++) {
+    const wrap = document.createElement('div');
+    const page = document.createElement('div');
+    page.className = 'preview-page genkou-page';
+    page.style.padding = `${GENKOU.marginMm}mm`;
+    page.style.zoom = String(state.zoom);
+    page.style.setProperty('--cell', `${GENKOU.cellMm}mm`);
+    page.style.setProperty('--rows', String(perLine));
+
+    const grid = document.createElement('div');
+    grid.className = 'genkou-grid preview-text';
+    grid.style.gap = `${GENKOU.gapMm}mm`;
+    grid.style.padding = `0 ${GENKOU.gapMm}mm`;
+    grid.style.fontFamily = state.fontFamily;
+    grid.style.color = state.color;
+
+    // 行数が偶数の時だけ、中央に折り目（柱）を入れる
+    const half = perPage % 2 === 0 ? perPage / 2 : -1;
+    for (let l = 0; l < perPage; l++) {
+      if (l === half) {
+        const center = document.createElement('div');
+        center.className = 'genkou-center';
+        center.style.width = `${GENKOU.centerMm}mm`;
+        grid.appendChild(center);
+      }
+      grid.appendChild(buildGenkouLine(lines[p * perPage + l] || []));
+    }
+    page.appendChild(grid);
+
+    const num = document.createElement('div');
+    num.className = 'page-number';
+    num.textContent = `— ${p + 1} — (${perLine}×${perPage})`;
+    wrap.appendChild(page);
+    wrap.appendChild(num);
+    frag.appendChild(wrap);
+  }
+  return frag;
 }
 
 // ---- 自動字下げ ----
@@ -640,16 +734,24 @@ function setZoom(z) {
 
 fontSelect.addEventListener('change', () => {
   state.fontFamily = fontSelect.value;
-  document.querySelectorAll('.preview-column').forEach((el) => {
+  document.querySelectorAll('.preview-text').forEach((el) => {
     el.style.fontFamily = state.fontFamily;
   });
 });
 
 colorInput.addEventListener('input', () => {
   state.color = colorInput.value;
-  document.querySelectorAll('.preview-column').forEach((el) => {
+  document.querySelectorAll('.preview-text').forEach((el) => {
     el.style.color = state.color;
   });
+});
+
+// 原稿用紙表示は字数×行数のマスで1段なので、段数だけ触れないようにする
+genkouInput.addEventListener('change', () => {
+  state.genkou = genkouInput.checked;
+  colsInput.disabled = state.genkou;
+  updateStatus();
+  schedulePreview();
 });
 
 zoomSlider.addEventListener('input', () => {
