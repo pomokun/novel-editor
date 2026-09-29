@@ -110,10 +110,26 @@ function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// textarea の背後に同じ文字列を透明で敷き、空白の位置に印を出す
-function renderBackdrop() {
-  const html = escapeHtml(editor.value)
+function markSpacesHtml(text) {
+  return escapeHtml(text)
     .replace(SPACE_RE, (ch) => `<span class="${spaceClass(ch)}">${ch}</span>`);
+}
+
+// 検索バーの状態。matches は本文中の一致範囲、index は現在の一致
+const find = { open: false, matches: [], index: -1, error: false };
+
+// textarea の背後に同じ文字列を透明で敷き、空白の位置と検索結果に印を出す
+function renderBackdrop() {
+  const text = editor.value;
+  let html = '';
+  let pos = 0;
+  find.matches.forEach((m, i) => {
+    const cls = i === find.index ? 'find-hit find-current' : 'find-hit';
+    html += markSpacesHtml(text.slice(pos, m.start));
+    html += `<mark class="${cls}">${markSpacesHtml(text.slice(m.start, m.end))}</mark>`;
+    pos = m.end;
+  });
+  html += markSpacesHtml(text.slice(pos));
   // 末尾が改行の時も textarea と同じく空行ができるよう、印のない空白を足す
   editorBackdrop.innerHTML = html + ' ';
   syncBackdropScroll();
@@ -388,6 +404,21 @@ function replaceRange(start, end, text) {
   document.execCommand(text ? 'insertText' : 'delete', false, text);
 }
 
+// 全文を newValue にするが、実際に変わった範囲だけを置換する
+// （元に戻した時に全文が選択されないように）
+function replaceChanged(newValue) {
+  const old = editor.value;
+  const max = Math.min(old.length, newValue.length);
+  let s = 0;
+  while (s < max && old[s] === newValue[s]) s++;
+  let e = 0;
+  while (e < max - s && old[old.length - 1 - e] === newValue[newValue.length - 1 - e]) e++;
+  // サロゲートペアの途中で切らない
+  if (s > 0 && /[\uD800-\uDBFF]/.test(old[s - 1])) s--;
+  if (e > 0 && /[\uDC00-\uDFFF]/.test(old[old.length - e])) e--;
+  replaceRange(s, old.length - e, newValue.slice(s, newValue.length - e));
+}
+
 editor.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') {
     if (CARET_MOVE_KEYS.includes(e.key)) autoIndentAt = null;
@@ -441,14 +472,20 @@ editor.addEventListener('mousedown', () => {
   autoIndentAt = null;
 });
 
-// 選択範囲（なければ全文）の、字下げされていない段落に字下げを入れる
-function indentAll() {
+// 選択範囲を含む行全体（選択がなければ全文）の範囲
+function targetLineRange() {
   const { value, selectionStart, selectionEnd } = editor;
   const hasSel = selectionStart !== selectionEnd;
   const start = hasSel ? lineStartOf(value, selectionStart) : 0;
   // 選択が次の行頭で終わっている場合、その行は含めない
   const endRef = hasSel && value[selectionEnd - 1] === '\n' ? selectionEnd - 1 : selectionEnd;
   const end = hasSel ? lineEndOf(value, endRef) : value.length;
+  return { value, selectionStart, selectionEnd, hasSel, start, end };
+}
+
+// 選択範囲（なければ全文）の、字下げされていない段落に字下げを入れる
+function indentAll() {
+  const { value, selectionStart, hasSel, start, end } = targetLineRange();
 
   let caret = selectionStart;
   let offset = start;
@@ -468,7 +505,203 @@ function indentAll() {
   else editor.setSelectionRange(caret, caret);
 }
 
+// 選択範囲（なければ全文）の行頭の空白を、半角→全角 / 全角→半角 に変換する
+// 1文字ずつの置き換えなので文字位置は変わらない
+function convertIndent(to) {
+  const { value, selectionStart, selectionEnd, start, end } = targetLineRange();
+  const [fromCh, toCh] = to === 'full' ? [' ', '　'] : ['　', ' '];
+  const oldText = value.slice(start, end);
+  const newText = oldText.replace(/^[ 　]+/gm, (lead) => lead.replaceAll(fromCh, toCh));
+  if (newText === oldText) return;
+
+  const scrollTop = editor.scrollTop;
+  autoIndentAt = null;
+  replaceChanged(value.slice(0, start) + newText + value.slice(end));
+  editor.setSelectionRange(selectionStart, selectionEnd);
+  editor.scrollTop = scrollTop;
+}
+
+// ---- 検索・置換 ----
+const findBar = document.getElementById('find-bar');
+const findInput = document.getElementById('find-input');
+const replaceInput = document.getElementById('replace-input');
+const findRegex = document.getElementById('find-regex');
+const findCount = document.getElementById('find-count');
+
+function buildFindRegex(flags) {
+  const q = findInput.value;
+  if (!q) return null;
+  const src = findRegex.checked ? q : q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(src, flags);
+}
+
+// 本文から一致箇所を集め直す。find.index は範囲内に収める
+function updateFindMatches() {
+  find.matches = [];
+  find.error = false;
+  let re;
+  try {
+    re = buildFindRegex('gm');
+  } catch {
+    find.error = true;
+  }
+  if (re) {
+    for (const m of editor.value.matchAll(re)) {
+      find.matches.push({ start: m.index, end: m.index + m[0].length });
+    }
+  }
+  if (find.index >= find.matches.length) find.index = find.matches.length - 1;
+  if (find.index < 0 && find.matches.length) find.index = 0;
+  updateFindCount();
+}
+
+function updateFindCount(message) {
+  findCount.classList.toggle('error', find.error);
+  if (message) findCount.textContent = message;
+  else if (find.error) findCount.textContent = '正規表現が不正';
+  else if (!findInput.value) findCount.textContent = '';
+  else if (!find.matches.length) findCount.textContent = '見つかりません';
+  else findCount.textContent = `${find.index + 1} / ${find.matches.length}`;
+}
+
+// 現在の一致を選択し、検索バーに隠れない位置までスクロールする
+function revealCurrentMatch() {
+  const m = find.matches[find.index];
+  if (!m) return;
+  editor.setSelectionRange(m.start, m.end);
+  const el = editorBackdrop.querySelector('.find-current');
+  if (!el) return;
+  const top = el.offsetTop;
+  const view = editor.clientHeight;
+  if (top < editor.scrollTop + findBar.offsetHeight + 16 || top + el.offsetHeight > editor.scrollTop + view - 16) {
+    editor.scrollTop = Math.max(0, top - view / 3);
+    syncBackdropScroll();
+  }
+}
+
+// pos 以降で最初の一致を現在の一致にする（なければ先頭に戻る）
+function selectMatchFrom(pos) {
+  updateFindMatches();
+  const i = find.matches.findIndex((m) => m.start >= pos);
+  find.index = i >= 0 ? i : find.matches.length ? 0 : -1;
+  updateFindCount();
+  renderBackdrop();
+  revealCurrentMatch();
+}
+
+function openFind(mode) {
+  const { value, selectionStart, selectionEnd } = editor;
+  const sel = value.slice(selectionStart, selectionEnd);
+  if (sel && !sel.includes('\n')) findInput.value = sel;
+  find.open = true;
+  findBar.classList.remove('hidden');
+  const target = mode === 'replace' ? replaceInput : findInput;
+  target.focus();
+  target.select();
+  selectMatchFrom(selectionStart);
+}
+
+function closeFind() {
+  if (!find.open) return;
+  find.open = false;
+  find.matches = [];
+  find.index = -1;
+  findBar.classList.add('hidden');
+  renderBackdrop();
+  editor.focus();
+}
+
+function stepFind(dir) {
+  if (!find.open) return openFind('find');
+  const n = find.matches.length;
+  if (!n) return;
+  find.index = (find.index + dir + n) % n;
+  updateFindCount();
+  renderBackdrop();
+  revealCurrentMatch();
+}
+
+// 置換後の文字列。正規表現モードでは $1 などの参照を展開する
+function replacementFor(m) {
+  if (!findRegex.checked) return replaceInput.value;
+  const value = editor.value;
+  const re = buildFindRegex('my');
+  re.lastIndex = m.start;
+  const replaced = value.replace(re, replaceInput.value);
+  return replaced.slice(m.start, replaced.length - (value.length - m.end));
+}
+
+// replaceRange は editor にフォーカスを移すので、操作していた欄に戻す
+function withFocusKept(fn) {
+  const active = document.activeElement;
+  fn();
+  if (active && active !== editor) active.focus();
+}
+
+function replaceCurrent() {
+  const m = find.matches[find.index];
+  if (!m) return;
+  const text = replacementFor(m);
+  autoIndentAt = null;
+  withFocusKept(() => replaceRange(m.start, m.end, text));
+  // 置換した文字列の中は再検索しない
+  selectMatchFrom(m.start + text.length);
+}
+
+function replaceAll() {
+  let re;
+  try {
+    re = buildFindRegex('gm');
+  } catch {
+    return;
+  }
+  const count = find.matches.length;
+  if (!re || !count) return;
+  const value = editor.value;
+  const newValue = findRegex.checked
+    ? value.replace(re, replaceInput.value)
+    : value.replace(re, () => replaceInput.value);
+  if (newValue === value) return;
+
+  // Ctrl+Z で一度に戻せるよう、1回の編集として置き換える
+  const scrollTop = editor.scrollTop;
+  const caret = Math.min(editor.selectionStart, newValue.length);
+  autoIndentAt = null;
+  withFocusKept(() => replaceChanged(newValue));
+  editor.setSelectionRange(caret, caret);
+  editor.scrollTop = scrollTop;
+  syncBackdropScroll();
+  updateFindCount(`${count}件置換`);
+}
+
+findInput.addEventListener('input', () => selectMatchFrom(editor.selectionStart));
+findRegex.addEventListener('change', () => selectMatchFrom(editor.selectionStart));
+document.getElementById('find-prev').addEventListener('click', () => stepFind(-1));
+document.getElementById('find-next').addEventListener('click', () => stepFind(1));
+document.getElementById('find-close').addEventListener('click', closeFind);
+document.getElementById('replace-one').addEventListener('click', replaceCurrent);
+document.getElementById('replace-all').addEventListener('click', replaceAll);
+
+findBar.addEventListener('keydown', (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeFind();
+  } else if (e.key === 'Enter' && e.target === findInput) {
+    e.preventDefault();
+    stepFind(e.shiftKey ? -1 : 1);
+  } else if (e.key === 'Enter' && e.target === replaceInput) {
+    e.preventDefault();
+    replaceCurrent();
+  }
+});
+
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && find.open) closeFind();
+});
+
 editor.addEventListener('input', () => {
+  if (find.open) updateFindMatches();
   renderBackdrop();
   updateStatus();
   if (!previewPane.classList.contains('collapsed')) schedulePreview({ preserveScroll: true });
@@ -513,6 +746,7 @@ async function doNew() {
 
 function loadContent(content) {
   editor.value = content;
+  if (find.open) updateFindMatches();
   renderBackdrop();
   state.savedContent = content;
   updateStatus();
@@ -711,6 +945,9 @@ window.api.onMenu('menu:indent-char', (_e, kind) => {
   state.indentChar = kind === 'half' ? ' ' : '　';
 });
 window.api.onMenu('menu:indent-all', indentAll);
+window.api.onMenu('menu:convert-indent', (_e, to) => convertIndent(to));
+window.api.onMenu('menu:find', (_e, mode) => openFind(mode));
+window.api.onMenu('menu:find-step', (_e, dir) => stepFind(dir));
 window.api.onMenu('menu:show-spaces', (_e, on) => {
   document.body.classList.toggle('show-spaces', !!on);
 });

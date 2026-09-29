@@ -62,6 +62,11 @@ function createWindow() {
         { role: 'paste', label: '貼り付け' },
         { role: 'selectAll', label: 'すべて選択' },
         { type: 'separator' },
+        { label: '検索...', accelerator: 'CmdOrCtrl+F', click: () => sendWith('menu:find', 'find') },
+        { label: '置換...', accelerator: 'CmdOrCtrl+H', click: () => sendWith('menu:find', 'replace') },
+        { label: '次を検索', accelerator: 'F3', click: () => sendWith('menu:find-step', 1) },
+        { label: '前を検索', accelerator: 'Shift+F3', click: () => sendWith('menu:find-step', -1) },
+        { type: 'separator' },
         { label: '自動字下げ', type: 'checkbox', checked: true, click: (item) => sendWith('menu:auto-indent', item.checked) },
         {
           label: '字下げの空白',
@@ -71,6 +76,13 @@ function createWindow() {
           ],
         },
         { label: '段落を一括字下げ', click: () => send('menu:indent-all') },
+        {
+          label: '字下げの空白を変換',
+          submenu: [
+            { label: '半角 → 全角', click: () => sendWith('menu:convert-indent', 'full') },
+            { label: '全角 → 半角', click: () => sendWith('menu:convert-indent', 'half') },
+          ],
+        },
       ],
     },
     {

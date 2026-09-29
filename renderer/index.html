@@ -11,6 +11,21 @@
       <section id="editor-pane">
         <!-- 空白の印を描く下敷き。textarea と同じレイアウトで背後に重ねる -->
         <div id="editor-backdrop" aria-hidden="true"></div>
+        <div id="find-bar" class="hidden">
+          <div class="find-row">
+            <input type="text" id="find-input" placeholder="検索" spellcheck="false" />
+            <span id="find-count"></span>
+            <button id="find-prev" title="前へ (Shift+Enter)">↑</button>
+            <button id="find-next" title="次へ (Enter)">↓</button>
+            <button id="find-close" title="閉じる (Esc)">×</button>
+          </div>
+          <div class="find-row">
+            <input type="text" id="replace-input" placeholder="置換後の文字列" spellcheck="false" />
+            <button id="replace-one" title="置換 (Enter)">置換</button>
+            <button id="replace-all">すべて置換</button>
+          </div>
+          <label class="find-option"><input type="checkbox" id="find-regex" />正規表現</label>
+        </div>
         <textarea id="editor" spellcheck="false" placeholder="ここに本文を入力..."></textarea>
       </section>
       <section id="preview-pane">

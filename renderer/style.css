@@ -62,6 +62,57 @@ body {
   pointer-events: none;
 }
 
+/* ---- 検索結果のハイライト ---- */
+#editor-backdrop .find-hit {
+  color: transparent;
+  background: rgba(230, 190, 60, 0.28);
+  border-radius: 2px;
+}
+#editor-backdrop .find-current {
+  background: rgba(240, 140, 40, 0.6);
+}
+
+/* ---- 検索・置換バー ---- */
+#find-bar {
+  position: absolute;
+  top: 6px;
+  right: 24px; /* スクロールバーを避ける */
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #262421;
+  border: 1px solid #555;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+}
+.find-row { display: flex; align-items: center; gap: 4px; }
+#find-bar input[type="text"] {
+  width: 200px;
+  padding: 3px 6px;
+  background: #1e1e1e;
+  color: #f0f0f0;
+  border: 1px solid #555;
+  border-radius: 3px;
+  font-size: 13px;
+}
+#find-bar input[type="text"]:focus { outline: 0; border-color: #6aa9ff; }
+#find-bar button {
+  padding: 2px 8px;
+  background: #3a3a3a;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+}
+#find-bar button:hover { background: #474747; }
+#find-count { min-width: 72px; color: #aaa; text-align: center; white-space: nowrap; }
+#find-count.error { color: #f08070; }
+.find-option { display: inline-flex; align-items: center; gap: 4px; color: #ccc; }
+
 /* ---- 空白の可視化（body.show-spaces の時だけ） ---- */
 /* 全角空白: 破線の枠 / 半角空白: 中央の小さな点 */
 .show-spaces #editor-backdrop .ws-full {
