@@ -77,6 +77,7 @@ function createWindow() {
       label: '表示',
       submenu: [
         { label: 'プレビュー切替', accelerator: 'CmdOrCtrl+P', click: () => send('menu:toggle-preview') },
+        { label: '空白を表示', type: 'checkbox', checked: true, click: (item) => sendWith('menu:show-spaces', item.checked) },
         {
           label: '用紙サイズ',
           submenu: [

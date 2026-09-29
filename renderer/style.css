@@ -25,22 +25,58 @@ body {
   overflow: hidden;
 }
 
-#editor-pane { border-right: 1px solid #444; }
+#editor-pane { border-right: 1px solid #444; position: relative; background: #1e1e1e; }
 
-#editor {
-  flex: 1;
-  width: 100%;
-  height: 100%;
+/* textarea と下敷きは折り返し位置が一致するよう同じ指定にする */
+#editor, #editor-backdrop {
+  margin: 0;
   border: 0;
-  outline: 0;
-  resize: none;
   padding: 12px 16px;
   font-family: "MS Gothic", "Yu Gothic", "Meiryo", monospace;
   font-size: 15px;
   line-height: 1.7;
-  background: #1e1e1e;
-  color: #f0f0f0;
   tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+#editor {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: #f0f0f0;
+}
+
+#editor-backdrop {
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  pointer-events: none;
+}
+
+/* ---- 空白の可視化（body.show-spaces の時だけ） ---- */
+/* 全角空白: 破線の枠 / 半角空白: 中央の小さな点 */
+.show-spaces #editor-backdrop .ws-full {
+  outline: 1px dashed rgba(110, 160, 230, 0.6);
+  outline-offset: -2px;
+}
+.show-spaces #editor-backdrop .ws-half {
+  background: radial-gradient(circle, rgba(240, 170, 90, 0.9) 1.5px, transparent 2px) center / 100% 100% no-repeat;
+}
+.show-spaces .preview-column .ws-full {
+  outline: 1px dashed rgba(60, 110, 190, 0.45);
+  outline-offset: -2px;
+}
+.show-spaces .preview-column .ws-half {
+  background: radial-gradient(circle, rgba(210, 120, 40, 0.8) 1.5px, transparent 2px) center / 100% 100% no-repeat;
 }
 
 #preview-pane {

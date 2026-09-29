@@ -1,4 +1,5 @@
 const editor = document.getElementById('editor');
+const editorBackdrop = document.getElementById('editor-backdrop');
 const preview = document.getElementById('preview');
 const previewPane = document.getElementById('preview-pane');
 const editorPane = document.getElementById('editor-pane');
@@ -80,6 +81,46 @@ function updateStatus() {
   state.dirty = text !== state.savedContent;
   updateTitle();
 }
+
+// ---- 空白の可視化 ----
+// 空白を span で包み、印の描画は CSS（body.show-spaces）に任せる
+const SPACE_RE = /[ 　]/g;
+
+function spaceClass(ch) {
+  return ch === ' ' ? 'ws-half' : 'ws-full';
+}
+
+function appendMarkedText(el, text) {
+  let last = 0;
+  for (const m of text.matchAll(SPACE_RE)) {
+    if (m.index > last) el.append(text.slice(last, m.index));
+    const span = document.createElement('span');
+    span.className = spaceClass(m[0]);
+    span.textContent = m[0];
+    el.append(span);
+    last = m.index + 1;
+  }
+  if (last < text.length) el.append(text.slice(last));
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// textarea の背後に同じ文字列を透明で敷き、空白の位置に印を出す
+function renderBackdrop() {
+  const html = escapeHtml(editor.value)
+    .replace(SPACE_RE, (ch) => `<span class="${spaceClass(ch)}">${ch}</span>`);
+  // 末尾が改行の時も textarea と同じく空行ができるよう、印のない空白を足す
+  editorBackdrop.innerHTML = html + ' ';
+  syncBackdropScroll();
+}
+
+function syncBackdropScroll() {
+  editorBackdrop.scrollTop = editor.scrollTop;
+}
+
+editor.addEventListener('scroll', syncBackdropScroll);
 
 let renderTimer = null;
 let preserveScroll = false;
@@ -195,7 +236,7 @@ function renderPreview() {
       colDiv.style.lineHeight = String(LINE_HEIGHT);
       colDiv.style.fontFamily = state.fontFamily;
       colDiv.style.color = state.color;
-      colDiv.textContent = cols[c] || '';
+      appendMarkedText(colDiv, cols[c] || '');
       inner.appendChild(colDiv);
     }
     page.appendChild(inner);
@@ -334,6 +375,7 @@ function indentAll() {
 }
 
 editor.addEventListener('input', () => {
+  renderBackdrop();
   updateStatus();
   if (!previewPane.classList.contains('collapsed')) schedulePreview({ preserveScroll: true });
 });
@@ -377,6 +419,7 @@ async function doNew() {
 
 function loadContent(content) {
   editor.value = content;
+  renderBackdrop();
   state.savedContent = content;
   updateStatus();
   schedulePreview();
@@ -574,6 +617,9 @@ window.api.onMenu('menu:indent-char', (_e, kind) => {
   state.indentChar = kind === 'half' ? ' ' : '　';
 });
 window.api.onMenu('menu:indent-all', indentAll);
+window.api.onMenu('menu:show-spaces', (_e, on) => {
+  document.body.classList.toggle('show-spaces', !!on);
+});
 window.api.onMenu('menu:paper-size', (_e, key) => {
   if (PAPER_SIZES[key]) {
     state.paperKey = key;
@@ -634,6 +680,7 @@ previewScroll.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 // ---- 初期化 ----
+renderBackdrop();
 updateStatus();
 renderPreview();
 setZoom(state.zoom);

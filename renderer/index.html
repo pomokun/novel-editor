@@ -5,10 +5,12 @@
   <title>小説エディタ</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="show-spaces">
   <div id="app">
     <main id="panes">
       <section id="editor-pane">
+        <!-- 空白の印を描く下敷き。textarea と同じレイアウトで背後に重ねる -->
+        <div id="editor-backdrop" aria-hidden="true"></div>
         <textarea id="editor" spellcheck="false" placeholder="ここに本文を入力..."></textarea>
       </section>
       <section id="preview-pane">
