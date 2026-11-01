@@ -13,9 +13,13 @@ const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const FOLDER_NAME = '小説エディタ';
+// 原稿はテキストファイルのまま置く。Googleドキュメントに変換すると、
+// 全角スペースが半角になる・書き出し時に空行が倍になる、などで本文が変わってしまうため。
+const TEXT_MIME = 'text/plain';
+// 以前の版で作ったGoogleドキュメント。開くことはできるが、保存はテキストファイルに切り替える
 const DOC_MIME = 'application/vnd.google-apps.document';
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
-const META_FIELDS = 'id,name,modifiedTime';
+const META_FIELDS = 'id,name,mimeType,modifiedTime';
 
 const credentialsPath = () => path.join(app.getPath('userData'), 'google-credentials.json');
 const tokenPath = () => path.join(app.getPath('userData'), 'google-token.bin');
@@ -288,7 +292,7 @@ async function ensureFolder() {
 
 async function listFiles() {
   const parent = await ensureFolder();
-  const q = `'${parent}' in parents and mimeType='${DOC_MIME}' and trashed=false`;
+  const q = `'${parent}' in parents and (mimeType='${TEXT_MIME}' or mimeType='${DOC_MIME}') and trashed=false`;
   const res = await request(`${API}/files?${new URLSearchParams({
     q,
     fields: `files(${META_FIELDS})`,
@@ -303,21 +307,34 @@ async function getMeta(id) {
   return res.json();
 }
 
-async function exportText(id) {
-  const res = await request(`${API}/files/${encodeURIComponent(id)}/export?mimeType=text/plain`);
-  return normalizeText(await res.text());
+function isDoc(meta) {
+  return meta.mimeType === DOC_MIME;
+}
+
+async function readText(meta) {
+  const id = encodeURIComponent(meta.id);
+  const url = isDoc(meta)
+    ? `${API}/files/${id}/export?mimeType=text/plain`
+    : `${API}/files/${id}?alt=media`;
+  // 文字コードを推測させず、必ず UTF-8 として読む
+  const buf = Buffer.from(await (await request(url)).arrayBuffer());
+  return normalizeText(buf.toString('utf8'));
 }
 
 async function openFile(id) {
-  const [meta, content] = await Promise.all([getMeta(id), exportText(id)]);
-  return { meta, content };
+  const meta = await getMeta(id);
+  return { meta, content: await readText(meta) };
 }
 
-// テキストをGoogleドキュメントとして新規作成
+function withTxtExt(name) {
+  return /\.txt$/i.test(name) ? name : `${name}.txt`;
+}
+
+// テキストファイルとして新規作成（Googleドキュメントには変換しない）
 async function createFile(name, content) {
   const parent = await ensureFolder();
   const boundary = `novel-editor-${crypto.randomBytes(8).toString('hex')}`;
-  const metadata = { name, mimeType: DOC_MIME, parents: [parent] };
+  const metadata = { name: withTxtExt(name), mimeType: TEXT_MIME, parents: [parent] };
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
     `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${content}\r\n` +
@@ -330,7 +347,7 @@ async function createFile(name, content) {
   return res.json();
 }
 
-// 既存ドキュメントの本文をテキストで置き換える（ファイルIDは維持）
+// 既存テキストファイルの本文を置き換える（ファイルIDは維持）
 async function updateFile(id, content) {
   const res = await request(`${UPLOAD_API}/files/${encodeURIComponent(id)}?uploadType=media&fields=${META_FIELDS}`, {
     method: 'PATCH',
@@ -341,13 +358,12 @@ async function updateFile(id, content) {
 }
 
 // リモートが baseModifiedTime 以降に（内容として）変わったか調べる。
-// ドキュメントは保存後にも modifiedTime が動くことがあるため、時刻が違えば本文も比較する。
+// 時刻だけ動いて中身が同じこともあるため、時刻が違えば本文も比較する。
 async function checkRemote(id, baseModifiedTime, baseContent) {
   const meta = await getMeta(id);
   if (meta.modifiedTime === baseModifiedTime) return { changed: false, meta };
-  const content = await exportText(id);
-  const same = content.replace(/\n+$/, '') === normalizeText(baseContent).replace(/\n+$/, '');
-  return { changed: !same, meta, content };
+  const content = await readText(meta);
+  return { changed: content !== normalizeText(baseContent), meta, content };
 }
 
 module.exports = {
@@ -357,6 +373,8 @@ module.exports = {
   signIn,
   signOut,
   listFiles,
+  getMeta,
+  isDoc,
   openFile,
   createFile,
   updateFile,

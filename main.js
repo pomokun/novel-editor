@@ -262,6 +262,19 @@ ipcMain.handle('drive:open', (_e, id) => withDrive(() => drive.openFile(id)));
 ipcMain.handle('drive:save', (_e, { id, name, content, baseModifiedTime, baseContent }) => withDrive(async () => {
   if (!id) return { status: 'saved', meta: await drive.createFile(name, content) };
 
+  // 以前の版のGoogleドキュメントは、上書きすると変換で本文が崩れるため、テキストファイルとして別に保存する
+  const current = await drive.getMeta(id);
+  if (drive.isDoc(current)) {
+    const meta = await drive.createFile(current.name, content);
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      message: `テキストファイル「${meta.name}」として保存しました。`,
+      detail: 'Googleドキュメントに保存すると、全角スペースや空行が変わってしまうため、テキストファイルとして新しく保存しました。'
+        + '元のGoogleドキュメントはドライブにそのまま残っています。',
+    });
+    return { status: 'saved', meta };
+  }
+
   const remote = await drive.checkRemote(id, baseModifiedTime, baseContent);
   if (remote.changed) {
     const res = await dialog.showMessageBox(mainWindow, {

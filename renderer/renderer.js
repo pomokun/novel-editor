@@ -804,8 +804,8 @@ async function doDriveSave() {
 }
 
 async function doDriveSaveAs() {
-  const base = state.source === 'drive' ? state.driveName
-    : state.filePath ? state.filePath.split(/[\\/]/).pop().replace(/\.txt$/i, '') : '無題';
+  const base = (state.source === 'drive' ? state.driveName
+    : state.filePath ? state.filePath.split(/[\\/]/).pop() : '無題').replace(/\.txt$/i, '');
   const name = await showDriveModal({ title: 'ドライブに名前を付けて保存', name: base });
   if (!name) return false;
   const content = editor.value;
